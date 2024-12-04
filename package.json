@@ -1,0 +1,14 @@
+{
+  "name": "ts-cutting-algorithm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "start": "node ./dist/index.js"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  }
+}
