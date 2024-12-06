@@ -1,23 +1,22 @@
-import * as http from "http";
+console.log("worked!");
 
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>My TypeScript Page</title>
-    </head>
-    <body>
-      <h1>Hello, TypeScript!</h1>
-      <p>This page is rendered using TypeScript!</p>
-    </body>
-    </html>
-  `);
-});
+const plane = document.getElementsByClassName("plane");
+console.log(plane);
+// square sides:
+// left x = 0: coordinates - 0, y, where y in [0, 400]
+// right x = 400: coordinates 400, y, where y in [0, 400]
+// top y = 400: coordinates x, 400, where x in [0, 400]
+// bottom y = 0: coordinates x, 0, where x in [0, 400]
+const squareSides = [
+  {x: 0, y: [0, 400]}, {x: 400, y: [0, 400]},
+  {x: [0, 400], y: 400}, {x: [0, 400], y: 0}
+]
 
-server.listen(3000, () => {
-    console.log("Server is running on http://localhost:3000");
-});
+const generateLines = (squareSize: number, nLines: number) => {
+  const randomSide = Math.floor(Math.random() * squareSides.length);
+  console.log(squareSides[randomSide]);
+}
+
+const cuttingAlgorithm = () => {
+
+}
