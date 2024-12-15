@@ -67,6 +67,82 @@ const findIntersection = (seg1, seg2) => {
     // No intersection
     return null;
 };
+// Утилита для преобразования точки в строку (для ключей в Map)
+const pointToString = (point) => {
+    return `${point.x},${point.y}`;
+};
+// Утилита для вычисления равенства двух точек
+const pointsAreEqual = (p1, p2) => {
+    return p1.x === p2.x && p1.y === p2.y;
+};
+// Построение графа из отрезков
+const buildGraph = (segments, intersections) => {
+    const graph = new Map();
+    // Функция для добавления ребра в граф
+    const addEdge = (p1, p2) => {
+        const key1 = pointToString(p1);
+        const key2 = pointToString(p2);
+        if (!graph.has(key1))
+            graph.set(key1, []);
+        if (!graph.has(key2))
+            graph.set(key2, []);
+        graph.get(key1).push(p2);
+        graph.get(key2).push(p1);
+    };
+    // Добавляем отрезки и точки пересечений в граф
+    for (const segment of segments) {
+        addEdge(segment.start, segment.end);
+    }
+    for (const intersection of intersections) {
+        for (const segment of segments) {
+            if ((pointsAreEqual(segment.start, intersection) || pointsAreEqual(segment.end, intersection)) &&
+                !pointsAreEqual(segment.start, segment.end)) {
+                addEdge(segment.start, intersection);
+                addEdge(segment.end, intersection);
+            }
+        }
+    }
+    return graph;
+};
+// Алгоритм обхода графа для построения фигур (поиск циклов)
+function findShapes(graph) {
+    const visitedEdges = new Set();
+    const shapes = [];
+    function edgeToString(p1, p2) {
+        return `${pointToString(p1)}-${pointToString(p2)}`;
+    }
+    function dfs(current, start, path) {
+        const neighbors = graph.get(pointToString(current)) || [];
+        for (const neighbor of neighbors) {
+            const edgeKey = edgeToString(current, neighbor);
+            const reverseEdgeKey = edgeToString(neighbor, current);
+            if (!visitedEdges.has(edgeKey) && !visitedEdges.has(reverseEdgeKey)) {
+                visitedEdges.add(edgeKey);
+                path.push(neighbor);
+                if (pointsAreEqual(neighbor, start) && path.length > 2) {
+                    shapes.push([...path]);
+                }
+                else {
+                    dfs(neighbor, start, path);
+                }
+                path.pop();
+            }
+        }
+    }
+    for (const [key, point] of graph.entries()) {
+        const neighbors = graph.get(key) || [];
+        for (const neighbor of neighbors) {
+            // @ts-ignore
+            const edgeKey = edgeToString(point, neighbor);
+            if (!visitedEdges.has(edgeKey)) {
+                visitedEdges.add(edgeKey);
+                // @ts-ignore
+                dfs(point, point, [point]);
+            }
+        }
+    }
+    return shapes;
+}
 // Generate and append lines
 const lines = cuttingAlgorithm();
 lines.forEach(line => plane.append(line));
@@ -78,18 +154,22 @@ const intersections = [];
 segments.forEach((segment1) => {
     segments.forEach((segment2) => {
         const intersection = findIntersection(segment1, segment2);
-        console.log("intersection");
-        console.log(intersection);
         if (intersection) {
             intersections.push(intersection);
         }
     });
 });
-intersections.forEach(({ x, y }) => {
-    const circle = document.createElementNS(SVG_NS, "circle");
-    circle.setAttribute("cx", x.toString());
-    circle.setAttribute("cy", y.toString());
-    circle.setAttribute("r", "3");
-    circle.setAttribute("fill", "red");
-    plane.appendChild(circle);
-});
+const graph = buildGraph([...segments, ...squareSides], intersections);
+console.log("graph");
+console.log(graph);
+const shapes = findShapes(graph);
+console.log("Найденные фигуры:", shapes);
+// // Draw intersections for test
+// intersections.forEach(({x, y}) => {
+//   const circle = document.createElementNS(SVG_NS, "circle");
+//   circle.setAttribute("cx", x.toString());
+//   circle.setAttribute("cy", y.toString());
+//   circle.setAttribute("r", "3");
+//   circle.setAttribute("fill", "red");
+//   plane.appendChild(circle);
+// });
