@@ -1,163 +1,95 @@
 "use strict";
-const plane = document.querySelector(".plane");
 const SVG_NS = "http://www.w3.org/2000/svg";
-if (!plane) {
-    throw Error("No plane found!");
-}
-const squareSize = plane.clientWidth;
-// square sides:
-const squareSides = [
-    { x: 0, y: () => Math.random() * squareSize },
-    { x: squareSize, y: () => Math.random() * squareSize },
-    { x: () => Math.random() * squareSize, y: 0 },
-    { x: () => Math.random() * squareSize, y: squareSize }
+const plane = document.querySelector(".plane");
+const square = plane.querySelector("rect");
+// Square parameters
+const sqX = parseFloat(square.getAttribute("x") || "0");
+const sqY = parseFloat(square.getAttribute("y") || "0");
+const sqWidth = parseFloat(square.getAttribute("width") || "0");
+const sqHeight = parseFloat(square.getAttribute("height") || "0");
+const squareAngles = [
+    { x: sqX, y: sqY }, { x: sqX + sqWidth, y: sqY },
+    { x: sqX + sqWidth, y: sqY + sqHeight }, { x: sqX, y: sqY + sqHeight }
 ];
-const getCoordinateValue = (coordinate) => {
-    return typeof coordinate === "function" ? coordinate().toString() : coordinate.toString();
+const squareSides = squareAngles.map((point, i) => ({
+    start: point,
+    end: squareAngles[(i + 1) % squareAngles.length]
+}));
+console.log({ squareAngles, squareSides });
+// Generate random points on the selected sides
+const getRandomPointOnSide = (side) => {
+    const rand = Math.random();
+    return {
+        x: side.start.x + rand * (side.end.x - side.start.x),
+        y: side.start.y + rand * (side.end.y - side.start.y)
+    };
 };
-const generateLines = (nLines) => {
+const cuttingAlgorithm = (nSegments = 6) => {
     const lines = [];
-    for (let i = 0; i < nLines; i++) {
+    for (let i = 0; i < nSegments; i++) {
         // Select two random sides of the square
         const startSide = squareSides[Math.floor(Math.random() * squareSides.length)];
         const otherSides = squareSides.filter(side => side !== startSide);
         const secondSide = otherSides[Math.floor(Math.random() * otherSides.length)];
-        const lineCoordinates = {
-            x1: getCoordinateValue(startSide.x),
-            y1: getCoordinateValue(startSide.y),
-            x2: getCoordinateValue(secondSide.x),
-            y2: getCoordinateValue(secondSide.y),
-        };
+        // and two random points on them
+        const point1 = getRandomPointOnSide(startSide);
+        const point2 = getRandomPointOnSide(secondSide);
+        // Create a line connecting the two points
         const line = document.createElementNS(SVG_NS, "line");
-        Object.entries(lineCoordinates).forEach(([key, value]) => {
-            line.setAttribute(key, value);
-        });
+        line.setAttribute("x1", point1.x.toString());
+        line.setAttribute("y1", point1.y.toString());
+        line.setAttribute("x2", point2.x.toString());
+        line.setAttribute("y2", point2.y.toString());
         line.setAttribute("stroke", "black");
         lines.push(line);
     }
     return lines;
 };
+const findIntersection = (seg1, seg2) => {
+    const { start: A1, end: B1 } = seg1;
+    const { start: A2, end: B2 } = seg2;
+    // Calculate the determinant (denominator)
+    const determinant = (A1.x - B1.x) * (A2.y - B2.y) - (A1.y - B1.y) * (A2.x - B2.x);
+    // Use an EPSILON for precision issues
+    const EPSILON = 1e-10;
+    if (Math.abs(determinant) < EPSILON)
+        return null; // Parallel or coincident lines
+    // Calculate the parameters t and u
+    const t = ((A1.x - A2.x) * (A2.y - B2.y) - (A1.y - A2.y) * (A2.x - B2.x)) / determinant;
+    const u = -((A1.x - B1.x) * (A1.y - A2.y) - (A1.y - B1.y) * (A1.x - A2.x)) / determinant;
+    // Check if the intersection point lies on both segments
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+        return {
+            x: A1.x + t * (B1.x - A1.x),
+            y: A1.y + t * (B1.y - A1.y)
+        };
+    }
+    // No intersection
+    return null;
+};
 // Generate and append lines
-const lines = generateLines(6);
+const lines = cuttingAlgorithm();
 lines.forEach(line => plane.append(line));
 const segments = lines.map(line => ({
     start: { x: line.x1.baseVal.value, y: line.y1.baseVal.value },
     end: { x: line.x2.baseVal.value, y: line.y2.baseVal.value }
 }));
-// Function to find intersection of two line segments
-const findIntersection = (seg1, seg2) => {
-    const { start: A, end: B } = seg1;
-    const { start: C, end: D } = seg2;
-    const denominator = (A.x - B.x) * (C.y - D.y) - (A.y - B.y) * (C.x - D.x);
-    if (denominator === 0)
-        return null; // Parallel lines
-    const t = ((A.x - C.x) * (C.y - D.y) - (A.y - C.y) * (C.x - D.x)) / denominator;
-    const u = -((A.x - B.x) * (A.y - C.y) - (A.y - B.y) * (A.x - C.x)) / denominator;
-    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-        return {
-            x: A.x + t * (B.x - A.x),
-            y: A.y + t * (B.y - A.y)
-        };
-    }
-    return null;
-};
-// Function to build the graph (vertices and edges)
-const buildGraph = (segments) => {
-    const vertices = new Set();
-    const edges = [];
-    // For each segment, add vertices and check for intersections
-    segments.forEach(({ start: A, end: B }) => {
-        const vertexA = `${A.x},${A.y}`;
-        const vertexB = `${B.x},${B.y}`;
-        vertices.add(vertexA);
-        vertices.add(vertexB);
-        // Check intersections with other segments
-        segments.forEach(({ start: C, end: D }) => {
-            const intersection = findIntersection({ start: A, end: B }, { start: C, end: D });
-            console.log("intersection");
-            console.log(intersection);
-            if (intersection) {
-                vertices.add(`${intersection.x},${intersection.y}`);
-            }
-        });
-        edges.push([vertexA, vertexB]);
-    });
-    return { vertices: Array.from(vertices), edges };
-};
-// Function to find cycles in the graph
-const findCycles = (graph) => {
-    const { vertices, edges } = graph;
-    const adjacencyList = {};
-    // Create adjacency list
-    vertices.forEach(v => (adjacencyList[v] = []));
-    edges.forEach(([from, to]) => {
-        adjacencyList[from].push(to);
-        adjacencyList[to].push(from);
-    });
-    const visited = new Set();
-    const stack = new Set(); // To track the current recursion stack
-    const cycles = [];
-    // Depth-first search to find cycles
-    const dfs = (current, path, parent) => {
-        if (stack.has(current)) {
-            // Found a cycle, check if it's valid
-            const cycleIndex = path.indexOf(current);
-            if (cycleIndex !== -1) {
-                const cycle = path.slice(cycleIndex);
-                if (!cycles.some(c => JSON.stringify(c) === JSON.stringify(cycle))) {
-                    cycles.push(cycle);
-                }
-            }
-            return;
-        }
-        stack.add(current);
-        path.push(current);
-        adjacencyList[current].forEach(neighbor => {
-            if (neighbor !== parent) {
-                dfs(neighbor, [...path], current);
-            }
-        });
-        stack.delete(current);
-    };
-    // Start DFS for each vertex
-    vertices.forEach(v => {
-        if (!visited.has(v)) {
-            dfs(v, [], "");
-            visited.add(v);
+const intersections = [];
+segments.forEach((segment1) => {
+    segments.forEach((segment2) => {
+        const intersection = findIntersection(segment1, segment2);
+        console.log("intersection");
+        console.log(intersection);
+        if (intersection) {
+            intersections.push(intersection);
         }
     });
-    return cycles;
-};
-const drawPolygons = (cycles, svgElement) => {
-    cycles.forEach(cycle => {
-        const points = cycle.map(vertex => vertex.split(",").join(" ")).join(" ");
-        const polygon = document.createElementNS(SVG_NS, "polygon");
-        polygon.setAttribute("points", points);
-        polygon.setAttribute("fill", getRandomColor());
-        polygon.setAttribute("stroke", "black");
-        polygon.setAttribute("stroke-width", "1");
-        svgElement.appendChild(polygon);
-    });
-};
-const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-const animateScaling = (svgElement) => {
-    const polygons = svgElement.querySelectorAll("polygon");
-    polygons.forEach(polygon => {
-        polygon.animate([
-            { transform: "scale(1)" },
-            { transform: "scale(4)" }
-        ], {
-            duration: 2000,
-            iterations: 1,
-            easing: "ease-in-out",
-            fill: "forwards"
-        });
-    });
-};
-const graph = buildGraph(segments);
-const cycles = findCycles(graph);
-console.log(graph);
-console.log("cycles");
-console.log(cycles);
-drawPolygons(cycles, plane);
-animateScaling(plane);
+});
+intersections.forEach(({ x, y }) => {
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", x.toString());
+    circle.setAttribute("cy", y.toString());
+    circle.setAttribute("r", "3");
+    circle.setAttribute("fill", "red");
+    plane.appendChild(circle);
+});
